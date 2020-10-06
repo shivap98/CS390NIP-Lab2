@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import tensorflow as tf
+import sklearn.metrics as sm
 from tensorflow import keras
 from tensorflow.keras.utils import to_categorical
 import random
@@ -15,8 +16,8 @@ tf.random.set_seed(1618)
 #tf.logging.set_verbosity(tf.logging.ERROR)   # Uncomment for TF1.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-ALGORITHM = "guesser"
-#ALGORITHM = "tf_net"
+# ALGORITHM = "guesser"
+ALGORITHM = "tf_net"
 #ALGORITHM = "tf_conv"
 
 DATASET = "mnist_d"
@@ -27,20 +28,24 @@ DATASET = "mnist_d"
 
 if DATASET == "mnist_d":
     NUM_CLASSES = 10
-    IH = 28
-    IW = 28
-    IZ = 1
-    IS = 784
+    IMAGE_HEIGHT = 28
+    IMAGE_WIDTH = 28
+    IMAGE_Z = 1
+    IMAGE_SIZE = 784
+
 elif DATASET == "mnist_f":
     NUM_CLASSES = 10
-    IH = 28
-    IW = 28
-    IZ = 1
-    IS = 784
+    IMAGE_HEIGHT = 28
+    IMAGE_WIDTH = 28
+    IMAGE_Z = 1
+    IMAGE_SIZE = 784
+
 elif DATASET == "cifar_10":
     pass                                 # TODO: Add this case.
+
 elif DATASET == "cifar_100_f":
     pass                                 # TODO: Add this case.
+
 elif DATASET == "cifar_100_c":
     pass                                 # TODO: Add this case.
 
@@ -57,9 +62,12 @@ def guesserClassifier(xTest):
 
 
 def buildTFNeuralNet(x, y, eps = 6):
-    pass        #TODO: Implement a standard ANN here.
-    return None
-
+    model = tf.keras.models.Sequential(
+        [tf.keras.layers.Flatten(), tf.keras.layers.Dense(256, activation=tf.nn.relu),
+         tf.keras.layers.Dense(10, activation=tf.nn.softmax)])
+    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.fit(x, y, epochs=eps)
+    return model
 
 def buildTFConvNet(x, y, eps = 10, dropout = True, dropRate = 0.2):
     pass        #TODO: Implement a CNN here. dropout option is required.
@@ -93,12 +101,17 @@ def getRawData():
 
 def preprocessData(raw):
     ((xTrain, yTrain), (xTest, yTest)) = raw
+
+    # Range reduction here (0-255 ==> 0.0-1.0).
+    xTrain, xTest = xTrain / 255.0, xTest / 255.0
+
     if ALGORITHM != "tf_conv":
-        xTrainP = xTrain.reshape((xTrain.shape[0], IS))
-        xTestP = xTest.reshape((xTest.shape[0], IS))
+        xTrainP = xTrain.reshape((xTrain.shape[0], IMAGE_SIZE))
+        xTestP = xTest.reshape((xTest.shape[0], IMAGE_SIZE))
     else:
-        xTrainP = xTrain.reshape((xTrain.shape[0], IH, IW, IZ))
-        xTestP = xTest.reshape((xTest.shape[0], IH, IW, IZ))
+        xTrainP = xTrain.reshape((xTrain.shape[0], IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_Z))
+        xTestP = xTest.reshape((xTest.shape[0], IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_Z))
+
     yTrainP = to_categorical(yTrain, NUM_CLASSES)
     yTestP = to_categorical(yTest, NUM_CLASSES)
     print("New shape of xTrain dataset: %s." % str(xTrainP.shape))
@@ -111,14 +124,18 @@ def preprocessData(raw):
 
 def trainModel(data):
     xTrain, yTrain = data
+
     if ALGORITHM == "guesser":
         return None   # Guesser has no model, as it is just guessing.
+
     elif ALGORITHM == "tf_net":
         print("Building and training TF_NN.")
         return buildTFNeuralNet(xTrain, yTrain)
+
     elif ALGORITHM == "tf_conv":
         print("Building and training TF_CNN.")
         return buildTFConvNet(xTrain, yTrain)
+
     else:
         raise ValueError("Algorithm not recognized.")
 
@@ -127,14 +144,20 @@ def trainModel(data):
 def runModel(data, model):
     if ALGORITHM == "guesser":
         return guesserClassifier(data)
+
     elif ALGORITHM == "tf_net":
         print("Testing TF_NN.")
+
+        # get predictions
         preds = model.predict(data)
+
+        # convert to only 0s and 1s
         for i in range(preds.shape[0]):
             oneHot = [0] * NUM_CLASSES
             oneHot[np.argmax(preds[i])] = 1
             preds[i] = oneHot
         return preds
+
     elif ALGORITHM == "tf_conv":
         print("Testing TF_CNN.")
         preds = model.predict(data)
@@ -143,6 +166,7 @@ def runModel(data, model):
             oneHot[np.argmax(preds[i])] = 1
             preds[i] = oneHot
         return preds
+
     else:
         raise ValueError("Algorithm not recognized.")
 
@@ -151,12 +175,29 @@ def runModel(data, model):
 def evalResults(data, preds):
     xTest, yTest = data
     acc = 0
+
     for i in range(preds.shape[0]):
-        if np.array_equal(preds[i], yTest[i]):   acc = acc + 1
-    accuracy = acc / preds.shape[0]
+        if np.array_equal(preds[i], yTest[i]):
+            acc = acc + 1
+
+    accuracy = float(acc) / preds.shape[0]
     print("Classifier algorithm: %s" % ALGORITHM)
     print("Classifier accuracy: %f%%" % (accuracy * 100))
-    print()
+
+    # Getting predicted and actual vals for confusion matrix and f1 score
+
+    pVals = []
+    acVals = []
+
+    for i in range(preds.shape[0]):
+        pVals.append(np.argmax(preds[i]))
+        acVals.append(np.argmax(yTest[i]))
+
+    print("Confusion Matrix")
+    print(sm.confusion_matrix(acVals, pVals))
+
+    print("F1 Score")
+    print(sm.f1_score(acVals, pVals, average='micro'))
 
 
 
