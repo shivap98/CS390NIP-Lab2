@@ -74,7 +74,7 @@ def guesserClassifier(xTest):
 def buildTFNeuralNet(x, y, eps=6):
 	model = tf.keras.models.Sequential(
 		[tf.keras.layers.Flatten(), tf.keras.layers.Dense(256, activation=tf.nn.relu),
-		tf.keras.layers.Dense(10, activation=tf.nn.softmax)])
+		tf.keras.layers.Dense(NUM_CLASSES, activation=tf.nn.softmax)])
 	model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 	model.fit(x, y, epochs=eps)
 	return model
